@@ -2,14 +2,11 @@ name: ETH Signal Check
 
 on:
   schedule:
-    # 每5分钟跑一次（GitHub在系统忙碌时可能会有几分钟延迟，属正常现象）
     - cron: '*/5 * * * *'
   workflow_dispatch:
-    # 允许在GitHub网页上手动点一下按钮立即执行，方便测试
 
 permissions:
   contents: write
-  # 需要写入权限，才能把 bot_state.json 提交回仓库保存
 
 jobs:
   check-signal:
@@ -32,10 +29,10 @@ jobs:
         run: python eth_signal_bot.py
 
       - name: 提交状态文件与日志变更
-     run: |
-       git config --global user.name 'github-actions[bot]'
-       git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-       touch bot_state.json bot_log.txt
-       git add bot_state.json bot_log.txt
-       git diff --staged --quiet || git commit -m "更新信号侦测状态 [skip ci]"
-       git push
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          touch bot_state.json bot_log.txt
+          git add bot_state.json bot_log.txt
+          git diff --staged --quiet || git commit -m "更新信号侦测状态 [skip ci]"
+          git push
