@@ -32,9 +32,10 @@ jobs:
         run: python eth_signal_bot.py
 
       - name: 提交状态文件与日志变更
-        run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add bot_state.json bot_log.txt
-          git diff --staged --quiet || git commit -m "更新信号侦测状态 [skip ci]"
-          git push
+     run: |
+       git config --global user.name 'github-actions[bot]'
+       git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+       touch bot_state.json bot_log.txt
+       git add bot_state.json bot_log.txt
+       git diff --staged --quiet || git commit -m "更新信号侦测状态 [skip ci]"
+       git push
