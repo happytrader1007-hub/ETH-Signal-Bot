@@ -73,11 +73,18 @@ def send_discord(message):
 
 def load_state():
     if os.path.exists(STATE_FILE):
-        with open(STATE_FILE, 'r') as f:
-            data = json.load(f)
-            if 'notified' not in data:
-                data['notified'] = []
-            return data
+        try:
+            with open(STATE_FILE, 'r') as f:
+                content = f.read().strip()
+                if not content:
+                    return {'notified': []}
+                data = json.loads(content)
+                if 'notified' not in data:
+                    data['notified'] = []
+                return data
+        except (json.JSONDecodeError, ValueError):
+            log('⚠ bot_state.json 内容损坏或为空，重置为空白状态')
+            return {'notified': []}
     return {'notified': []}
 
 
