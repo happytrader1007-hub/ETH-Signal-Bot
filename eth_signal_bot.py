@@ -42,6 +42,7 @@ EMA_WARMUP_BARS = 210
 # 每次抓多少历史资料来重建当前结构状态（不用抓全部历史，抓够用就好）
 FETCH_1H_DAYS = 180   # 抓最近180天的1小时线，找目前有效的结构位
 FETCH_5M_DAYS = 45    # 抓最近45天的5分钟线，判断当前EMA/RSI/回踩状态
+RECENT_WINDOW_HOURS = 6  # 每次检查最近几小时内的信号，避免因排程延迟而漏掉通知
 
 STATE_FILE = 'bot_state.json'
 LOG_FILE = 'bot_log.txt'
@@ -73,8 +74,11 @@ def send_discord(message):
 def load_state():
     if os.path.exists(STATE_FILE):
         with open(STATE_FILE, 'r') as f:
-            return json.load(f)
-    return {'last_notified_confirm_time': None}
+            data = json.load(f)
+            if 'notified' not in data:
+                data['notified'] = []
+            return data
+    return {'notified': []}
 
 
 def save_state(state):
@@ -282,47 +286,56 @@ def main():
         log('本次没有侦测到任何信号（历史范围内）')
         return
 
-    latest_signal = max(signals, key=lambda s: s['confirm_time'])
     latest_bar_time = df_5m.index[-1]
+    cutoff_time = latest_bar_time - pd.Timedelta(hours=RECENT_WINDOW_HOURS)
+
+    recent_signals = [s for s in signals if cutoff_time <= s['confirm_time'] <= latest_bar_time]
+    recent_signals.sort(key=lambda s: s['confirm_time'])
 
     log(f'最新一根已收盘K棒时间: {latest_bar_time}')
-    log(f'最新信号确认时间: {latest_signal["confirm_time"]}, 方向: {latest_signal["direction"]}')
-
-    # 只有当最新信号「就是」最新一根已收盘K棒时，才算是全新的、值得通知的信号
-    if latest_signal['confirm_time'] != latest_bar_time:
-        log('最新信号不是最新K棒，代表目前没有新信号，本次不通知')
-        return
+    log(f'最近 {RECENT_WINDOW_HOURS} 小时内共有 {len(recent_signals)} 个信号')
 
     state = load_state()
-    confirm_time_str = latest_signal['confirm_time'].isoformat()
+    notified_set = set(state.get('notified', []))
 
-    if state.get('last_notified_confirm_time') == confirm_time_str:
-        log('这个信号已经通知过了，跳过重复通知')
-        return
+    new_notifications = 0
+    for sig in recent_signals:
+        confirm_time_str = sig['confirm_time'].isoformat()
+        if confirm_time_str in notified_set:
+            continue
 
-    calc = compute_stop_target(df_5m, latest_signal, STOP_LOOKBACK, STOP_BUFFER, RR_RATIO)
-    if calc is None:
-        log('⚠ 止损/止盈计算失败（可能是历史资料不足），本次不通知')
-        return
+        calc = compute_stop_target(df_5m, sig, STOP_LOOKBACK, STOP_BUFFER, RR_RATIO)
+        if calc is None:
+            log(f'⚠ 信号 {confirm_time_str} 止损/止盈计算失败，跳过（标记为已处理，避免重复尝试）')
+            notified_set.add(confirm_time_str)
+            continue
 
-    direction_cn = '做多 🟢' if latest_signal['direction'] == 'long' else '做空 🔴'
-    my_time = latest_signal['confirm_time'] + pd.Timedelta(hours=8)
+        direction_cn = '做多 🟢' if sig['direction'] == 'long' else '做空 🔴'
+        my_time = sig['confirm_time'] + pd.Timedelta(hours=8)
 
-    message = (
-        f'【{SYMBOL} 新信号】\n'
-        f'方向: {direction_cn}\n'
-        f'确认时间(MY): {my_time.strftime("%Y-%m-%d %H:%M")}\n'
-        f'参考进场价: {calc["entry_ref"]:.2f}\n'
-        f'止损参考: {calc["stop"]:.2f} (距离 {calc["risk_pct"]:.2f}%)\n'
-        f'止盈参考: {calc["target"]:.2f} (风报比 1:{RR_RATIO})\n'
-        f'\n⚠ 请以下一根5分钟K棒开盘价附近实际下单为准，此为策略参考价'
-    )
+        message = (
+            f'【{SYMBOL} 新信号】\n'
+            f'方向: {direction_cn}\n'
+            f'确认时间(MY): {my_time.strftime("%Y-%m-%d %H:%M")}\n'
+            f'参考进场价: {calc["entry_ref"]:.2f}\n'
+            f'止损参考: {calc["stop"]:.2f} (距离 {calc["risk_pct"]:.2f}%)\n'
+            f'止盈参考: {calc["target"]:.2f} (风报比 1:{RR_RATIO})\n'
+            f'\n⚠ 请以下一根5分钟K棒开盘价附近实际下单为准，此为策略参考价'
+        )
 
-    log('侦测到全新信号，准备发送通知')
-    send_discord(message)
+        log(f'侦测到信号 {confirm_time_str}（{sig["direction"]}），准备发送通知')
+        send_discord(message)
+        notified_set.add(confirm_time_str)
+        new_notifications += 1
 
-    state['last_notified_confirm_time'] = confirm_time_str
+    # 清理太旧的记录，避免状态文件无限增长（保留窗口的4倍时间当缓冲）
+    prune_cutoff = (latest_bar_time - pd.Timedelta(hours=RECENT_WINDOW_HOURS * 4)).isoformat()
+    notified_set = {t for t in notified_set if t >= prune_cutoff}
+
+    state['notified'] = sorted(notified_set)
     save_state(state)
+
+    log(f'本次共发送 {new_notifications} 笔新通知')
     log('=== 本次检查完成 ===\n')
 
 
