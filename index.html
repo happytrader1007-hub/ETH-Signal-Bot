@@ -55,16 +55,13 @@
 
   .brand{display:flex;align-items:center;gap:10px;}
   .brand-mark{
-    width:30px;height:30px;
-    border-radius:8px;
-    background:linear-gradient(145deg, var(--accent), #5C6FE0);
+    width:32px;height:32px;
+    border-radius:9px;
+    background:linear-gradient(145deg, #3C4E8A, #1B2547);
     display:flex;align-items:center;justify-content:center;
-    font-family:var(--font-display);
-    font-weight:700;
-    font-size:15px;
-    color:#0B0E14;
     flex-shrink:0;
   }
+  .brand-mark svg{width:16px;height:26px;display:block;}
   .brand-text h1{
     font-family:var(--font-display);
     font-size:17px;
@@ -258,6 +255,12 @@
   .trade-mid .t-price{
     font-family:var(--font-mono);font-size:13px;color:var(--text-dim);margin-top:1px;
   }
+  .trade-mid .t-sltp{
+    font-family:var(--font-mono);font-size:11px;margin-top:3px;
+    display:flex;gap:10px;
+  }
+  .trade-mid .t-sltp .sl{color:var(--danger);}
+  .trade-mid .t-sltp .tp{color:var(--success);}
 
   .trade-end{text-align:right;flex-shrink:0;}
   .trade-badge{
@@ -299,7 +302,16 @@
 
   <header class="page-head">
     <div class="brand">
-      <div class="brand-mark">Ξ</div>
+      <div class="brand-mark">
+        <svg viewBox="0 0 32 52" xmlns="http://www.w3.org/2000/svg">
+          <polygon points="16,0 16,19 2,26" fill="#8B9EFF"/>
+          <polygon points="16,0 16,19 30,26" fill="#5C6FE0"/>
+          <polygon points="16,22.5 16,34 2,29" fill="#B7C1FF"/>
+          <polygon points="16,22.5 16,34 30,29" fill="#8B9EFF"/>
+          <polygon points="16,37 16,52 2,32" fill="#5C6FE0"/>
+          <polygon points="16,37 16,52 30,32" fill="#3C4E8A"/>
+        </svg>
+      </div>
       <div class="brand-text">
         <h1>ETH Signal Monitor</h1>
         <p id="lastUpdated">载入中...</p>
@@ -439,6 +451,10 @@ function renderTrades(trades){
         <div class="trade-mid">
           <div class="t-time">${toMY(t.entry_time)}</div>
           <div class="t-price">${fmtPrice(t.entry_price)} &rarr; ${t.exit_price ? fmtPrice(t.exit_price) : '--'}</div>
+          <div class="t-sltp">
+            <span class="sl">止损 ${fmtPrice(t.stop)}</span>
+            <span class="tp">止盈 ${fmtPrice(t.target)}</span>
+          </div>
         </div>
         <div class="trade-end">
           <span class="trade-badge ${t.status}">${statusLabel(t.status)}</span>
