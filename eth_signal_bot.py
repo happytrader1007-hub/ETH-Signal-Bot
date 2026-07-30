@@ -1,17 +1,16 @@
 """
-结构破位+EMA趋势+RSI+动能K线策略 -- 实时信号侦测 + Discord通知（GitHub Actions版）
+结构破位+EMA趋势+RSI+动能K线策略 -- 实时信号侦测 + 交易追踪 + Discord通知（GitHub Actions版 v2）
 
-这个版本设计给 GitHub Actions 使用：
+这个版本比前一版多了「交易生命週期追踪」：
+- 侦测到新信号时，记录成一笔「进行中(open)」的交易，存进 trades_data.json
+- 每次执行都会检查所有「进行中」的交易，看后续价格有没有触及止损/止盈，
+  一旦触及就更新状态成 target(止盈) / stop(止损) / timeout(超时平仓)
+- trades_data.json 会包含完整交易清单 + 整体统计（总笔数、胜率、平均R等），
+  设计给外部网站直接读取显示用
+
 - DISCORD_WEBHOOK_URL 从环境变量读取（在GitHub仓库的Secrets里设置，不会写死在代码里）
-- 状态文件(bot_state.json)存在仓库根目录，每次执行后由GitHub Actions自动提交回仓库
+- trades_data.json / bot_log.txt 存在仓库根目录，每次执行后由GitHub Actions自动提交回仓库
 - 不需要自己的电脑或伺服器一直开着，完全由GitHub的伺服器排程执行
-
-这个脚本每次执行会：
-1. 从 OKX 抓最近的 1小时 + 5分钟 K棒
-2. 用完全相同的策略逻辑（跟 Colab 回测同一套）算出所有历史信号
-3. 检查最新一根「已收盘」的5分钟K棒是不是信号确认棒
-4. 如果是新信号（之前没通知过），发 Discord 消息
-5. 把已通知过的信号记录存到本地文件，避免重复通知（GitHub Actions会把这个文件提交回仓库保存）
 """
 
 import ccxt
@@ -38,13 +37,15 @@ STOP_LOOKBACK = 6
 STOP_BUFFER = 0.0008
 RR_RATIO = 2.0
 EMA_WARMUP_BARS = 210
+MAX_HOLD_BARS = 288       # 最长持仓24小时（跟回测一致），超过还没结果就算timeout
+FEE_RATE = 0.0004
 
 # 每次抓多少历史资料来重建当前结构状态（不用抓全部历史，抓够用就好）
 FETCH_1H_DAYS = 180   # 抓最近180天的1小时线，找目前有效的结构位
-FETCH_5M_DAYS = 45    # 抓最近45天的5分钟线，判断当前EMA/RSI/回踩状态
-RECENT_WINDOW_HOURS = 6  # 每次检查最近几小时内的信号，避免因排程延迟而漏掉通知
+FETCH_5M_DAYS = 45    # 抓最近45天的5分钟线，判断当前EMA/RSI/回踩状态，也用来结算open交易
+RECENT_WINDOW_HOURS = 6  # 每次检查最近几小时内的新信号，避免因排程延迟而漏掉
 
-STATE_FILE = 'bot_state.json'
+TRADES_FILE = 'trades_data.json'
 LOG_FILE = 'bot_log.txt'
 
 
@@ -71,26 +72,26 @@ def send_discord(message):
         log(f'⚠ Discord 发送时发生例外: {e}')
 
 
-def load_state():
-    if os.path.exists(STATE_FILE):
+def load_trades_data():
+    if os.path.exists(TRADES_FILE):
         try:
-            with open(STATE_FILE, 'r') as f:
+            with open(TRADES_FILE, 'r') as f:
                 content = f.read().strip()
                 if not content:
-                    return {'notified': []}
+                    return {'trades': []}
                 data = json.loads(content)
-                if 'notified' not in data:
-                    data['notified'] = []
+                if 'trades' not in data:
+                    data['trades'] = []
                 return data
         except (json.JSONDecodeError, ValueError):
-            log('⚠ bot_state.json 内容损坏或为空，重置为空白状态')
-            return {'notified': []}
-    return {'notified': []}
+            log('⚠ trades_data.json 内容损坏或为空，重置为空白状态')
+            return {'trades': []}
+    return {'trades': []}
 
 
-def save_state(state):
-    with open(STATE_FILE, 'w') as f:
-        json.dump(state, f)
+def save_trades_data(data):
+    with open(TRADES_FILE, 'w') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False, default=str)
 
 
 def fetch_ohlcv(symbol, timeframe, days, exchange_id=EXCHANGE_ID, limit=300):
@@ -252,7 +253,7 @@ def compute_stop_target(df5, signal, stop_lookback, stop_buffer, rr_ratio):
     if confirm_idx is None or confirm_idx < stop_lookback:
         return None
     lookback = df5.iloc[confirm_idx - stop_lookback + 1: confirm_idx + 1]
-    entry_ref_price = signal['confirm_close']  # 用确认K棒收盘价当参考（真正进场是下一根开盘，价格会很接近）
+    entry_ref_price = signal['confirm_close']
 
     if signal['direction'] == 'short':
         stop = lookback['high'].max() * (1 + stop_buffer)
@@ -268,6 +269,79 @@ def compute_stop_target(df5, signal, stop_lookback, stop_buffer, rr_ratio):
     return {'entry_ref': entry_ref_price, 'stop': stop, 'target': target, 'risk_pct': risk / entry_ref_price * 100}
 
 
+# ============ 交易生命週期追踪 ============
+def update_open_trades(trades, df5):
+    """检查所有 open 状态的交易，看后续价格有没有触及止损/止盈/超时"""
+    idx_lookup = {t: i for i, t in enumerate(df5.index)}
+    high = df5['high'].values
+    low = df5['low'].values
+    close = df5['close'].values
+    n = len(df5)
+
+    for trade in trades:
+        if trade['status'] != 'open':
+            continue
+
+        entry_time = pd.Timestamp(trade['entry_time'])
+        entry_idx = idx_lookup.get(entry_time)
+        if entry_idx is None:
+            continue  # 进场时间不在目前抓到的资料范围内，跳过（下次资料更新后再看）
+
+        direction = trade['direction']
+        stop = trade['stop']
+        target = trade['target']
+        entry_price = trade['entry_price']
+        risk = abs(entry_price - stop)
+
+        end_idx = min(entry_idx + MAX_HOLD_BARS, n)
+        resolved = False
+
+        for j in range(entry_idx, end_idx):
+            hit_stop = (low[j] <= stop) if direction == 'long' else (high[j] >= stop)
+            hit_target = (high[j] >= target) if direction == 'long' else (low[j] <= target)
+
+            if hit_stop or hit_target:
+                exit_price = stop if hit_stop else target  # 同根K棒都触及时，保守假设止损先发生
+                outcome = 'stop' if hit_stop else 'target'
+                trade['status'] = outcome
+                trade['exit_time'] = df5.index[j].isoformat()
+                trade['exit_price'] = float(exit_price)
+                gross_r = ((exit_price - entry_price) / risk if direction == 'long'
+                           else (entry_price - exit_price) / risk)
+                trade['r'] = round(gross_r - (FEE_RATE * 2 / (risk / entry_price)), 4)
+                resolved = True
+                break
+
+        if not resolved and end_idx - entry_idx >= MAX_HOLD_BARS:
+            # 超过最长持仓时间还没结果，视为 timeout，用最后一根收盘价结算
+            last_idx = end_idx - 1
+            trade['status'] = 'timeout'
+            trade['exit_time'] = df5.index[last_idx].isoformat()
+            trade['exit_price'] = float(close[last_idx])
+            gross_r = ((close[last_idx] - entry_price) / risk if direction == 'long'
+                       else (entry_price - close[last_idx]) / risk)
+            trade['r'] = round(gross_r - (FEE_RATE * 2 / (risk / entry_price)), 4)
+
+
+def compute_stats(trades):
+    closed = [t for t in trades if t['status'] in ('target', 'stop', 'timeout')]
+    open_trades = [t for t in trades if t['status'] == 'open']
+    wins = [t for t in closed if t.get('r', 0) > 0]
+    total_r = sum(t.get('r', 0) for t in closed)
+    win_rate = len(wins) / len(closed) if closed else None
+    avg_r = total_r / len(closed) if closed else None
+    return {
+        'total_trades': len(trades),
+        'closed_trades': len(closed),
+        'open_trades': len(open_trades),
+        'wins': len(wins),
+        'losses': len(closed) - len(wins),
+        'win_rate': round(win_rate, 4) if win_rate is not None else None,
+        'avg_r': round(avg_r, 4) if avg_r is not None else None,
+        'total_r': round(total_r, 4),
+    }
+
+
 # ============ 主流程 ============
 def main():
     log(f'=== 开始检查 {SYMBOL} 信号 ===')
@@ -279,70 +353,96 @@ def main():
         log('⚠ 抓到的历史资料太少，可能是网路或交易所问题，本次跳过')
         return
 
-    # 去掉可能还没收盘的最后一根K棒，避免用到未完成的数据
+    # 去掉可能还没收盘的最后一根K棒
     df_1h = df_1h.iloc[:-1]
-    df_5m = df_5m.iloc[:-1]
+    df_5m_full = df_5m.iloc[:-1].copy()  # 保留完整版给「结算open交易」用（含最新价格）
+    df_5m = compute_indicators(df_5m_full)
 
-    df_5m = compute_indicators(df_5m)
+    latest_bar_time = df_5m.index[-1]
+    current_price = float(df_5m['close'].iloc[-1])
+    log(f'最新一根已收盘K棒时间: {latest_bar_time}, 现价: {current_price:.2f}')
 
+    trades_data = load_trades_data()
+    trades = trades_data.get('trades', [])
+    known_entry_times = {t['entry_time'] for t in trades}
+
+    # 1) 先结算所有 open 交易
+    update_open_trades(trades, df_5m)
+
+    # 2) 找新信号
     break_events = detect_structure_breaks(df_1h, left=PIVOT_LEFT_RIGHT, right=PIVOT_LEFT_RIGHT)
     signals = generate_signals(df_5m, break_events, RETEST_TOLERANCE, MOMENTUM_FACTOR,
                                 MAX_WAIT_BARS, EMA_WARMUP_BARS)
 
-    if not signals:
-        log('本次没有侦测到任何信号（历史范围内）')
-        return
-
-    latest_bar_time = df_5m.index[-1]
     cutoff_time = latest_bar_time - pd.Timedelta(hours=RECENT_WINDOW_HOURS)
-
-    recent_signals = [s for s in signals if cutoff_time <= s['confirm_time'] <= latest_bar_time]
-    recent_signals.sort(key=lambda s: s['confirm_time'])
-
-    log(f'最新一根已收盘K棒时间: {latest_bar_time}')
+    recent_signals = sorted(
+        [s for s in signals if cutoff_time <= s['confirm_time'] <= latest_bar_time],
+        key=lambda s: s['confirm_time']
+    )
     log(f'最近 {RECENT_WINDOW_HOURS} 小时内共有 {len(recent_signals)} 个信号')
-
-    state = load_state()
-    notified_set = set(state.get('notified', []))
 
     new_notifications = 0
     for sig in recent_signals:
-        confirm_time_str = sig['confirm_time'].isoformat()
-        if confirm_time_str in notified_set:
+        confirm_idx_lookup = {t: i for i, t in enumerate(df_5m.index)}
+        confirm_idx = confirm_idx_lookup.get(sig['confirm_time'])
+        if confirm_idx is None or confirm_idx + 1 >= len(df_5m):
             continue
+        entry_idx = confirm_idx + 1
+        entry_time = df_5m.index[entry_idx]
+        entry_time_str = entry_time.isoformat()
+
+        if entry_time_str in known_entry_times:
+            continue  # 这笔已经记录过了
 
         calc = compute_stop_target(df_5m, sig, STOP_LOOKBACK, STOP_BUFFER, RR_RATIO)
         if calc is None:
-            log(f'⚠ 信号 {confirm_time_str} 止损/止盈计算失败，跳过（标记为已处理，避免重复尝试）')
-            notified_set.add(confirm_time_str)
             continue
 
-        direction_cn = '做多 🟢' if sig['direction'] == 'long' else '做空 🔴'
-        my_time = sig['confirm_time'] + pd.Timedelta(hours=8)
+        entry_price_actual = float(df_5m['open'].iloc[entry_idx])
 
+        new_trade = {
+            'entry_time': entry_time_str,
+            'direction': sig['direction'],
+            'entry_price': entry_price_actual,
+            'stop': float(calc['stop']),
+            'target': float(calc['target']),
+            'status': 'open',
+            'exit_time': None,
+            'exit_price': None,
+            'r': None,
+        }
+        trades.append(new_trade)
+        known_entry_times.add(entry_time_str)
+
+        direction_cn = '做多 🟢' if sig['direction'] == 'long' else '做空 🔴'
+        my_time = entry_time + pd.Timedelta(hours=8)
         message = (
             f'【{SYMBOL} 新信号】\n'
             f'方向: {direction_cn}\n'
-            f'确认时间(MY): {my_time.strftime("%Y-%m-%d %H:%M")}\n'
-            f'参考进场价: {calc["entry_ref"]:.2f}\n'
-            f'止损参考: {calc["stop"]:.2f} (距离 {calc["risk_pct"]:.2f}%)\n'
-            f'止盈参考: {calc["target"]:.2f} (风报比 1:{RR_RATIO})\n'
-            f'\n⚠ 请以下一根5分钟K棒开盘价附近实际下单为准，此为策略参考价'
+            f'进场时间(MY): {my_time.strftime("%Y-%m-%d %H:%M")}\n'
+            f'进场价: {entry_price_actual:.2f}\n'
+            f'止损: {calc["stop"]:.2f} (距离 {calc["risk_pct"]:.2f}%)\n'
+            f'止盈: {calc["target"]:.2f} (风报比 1:{RR_RATIO})\n'
         )
-
-        log(f'侦测到信号 {confirm_time_str}（{sig["direction"]}），准备发送通知')
+        log(f'新交易 {entry_time_str}（{sig["direction"]}），准备发送通知')
         send_discord(message)
-        notified_set.add(confirm_time_str)
         new_notifications += 1
 
-    # 清理太旧的记录，避免状态文件无限增长（保留窗口的4倍时间当缓冲）
-    prune_cutoff = (latest_bar_time - pd.Timedelta(hours=RECENT_WINDOW_HOURS * 4)).isoformat()
-    notified_set = {t for t in notified_set if t >= prune_cutoff}
+        # 这笔刚建立的交易也顺便检查一次有没有立刻被结算（针对补追的信号）
+        update_open_trades([new_trade], df_5m)
 
-    state['notified'] = sorted(notified_set)
-    save_state(state)
+    # 3) 汇总统计，存档
+    trades.sort(key=lambda t: t['entry_time'])
+    stats = compute_stats(trades)
 
-    log(f'本次共发送 {new_notifications} 笔新通知')
+    trades_data['trades'] = trades
+    trades_data['stats'] = stats
+    trades_data['current_price'] = current_price
+    trades_data['last_updated'] = datetime.now(timezone.utc).isoformat()
+    save_trades_data(trades_data)
+
+    log(f'本次共发送 {new_notifications} 笔新通知；目前总交易数 {stats["total_trades"]}，'
+        f'进行中 {stats["open_trades"]}，已结算 {stats["closed_trades"]}，胜率 {stats["win_rate"]}')
     log('=== 本次检查完成 ===\n')
 
 
