@@ -46,6 +46,103 @@
 
   .wrap{max-width:720px;margin:0 auto;}
 
+  /* ===== 目录侧边栏 ===== */
+  .app-shell{display:flex;min-height:100vh;}
+  .sidebar{
+    width:76px;flex-shrink:0;
+    background:var(--surface);
+    border-right:1px solid var(--border);
+    display:flex;flex-direction:column;align-items:center;
+    padding:22px 0;gap:6px;
+    position:sticky;top:0;height:100vh;
+  }
+  .side-logo{
+    width:32px;height:32px;border-radius:9px;
+    background:linear-gradient(145deg, #3C4E8A, #1B2547);
+    display:flex;align-items:center;justify-content:center;
+    margin-bottom:18px;flex-shrink:0;
+  }
+  .side-logo svg{width:16px;height:26px;display:block;}
+  .nav-item{
+    width:56px;
+    display:flex;flex-direction:column;align-items:center;gap:4px;
+    background:none;border:none;color:var(--text-dim);
+    font-family:var(--font-body);font-size:10.5px;
+    padding:10px 4px;border-radius:12px;cursor:pointer;
+    transition:background .15s ease, color .15s ease;
+  }
+  .nav-item svg{width:18px;height:18px;}
+  .nav-item:hover{color:var(--text-muted);background:var(--surface-2);}
+  .nav-item.active{color:var(--accent);background:rgba(139,158,255,0.10);}
+
+  .main-content{flex:1;min-width:0;padding:20px 16px 60px;}
+  .main-content .wrap{max-width:720px;margin:0 auto;}
+
+  @media (max-width:640px){
+    .app-shell{flex-direction:column;}
+    .sidebar{
+      width:100%;height:auto;flex-direction:row;justify-content:center;
+      padding:10px 12px;gap:18px;position:sticky;top:0;z-index:20;
+      border-right:none;border-bottom:1px solid var(--border);
+    }
+    .side-logo{margin-bottom:0;margin-right:6px;}
+    .nav-item{width:auto;flex-direction:row;gap:6px;padding:8px 12px;font-size:12px;}
+  }
+
+  /* ===== 日历页 ===== */
+  .cal-head{display:flex;align-items:center;justify-content:space-between;margin:20px 0 16px;}
+  .cal-title{font-family:var(--font-display);font-size:16px;font-weight:600;}
+  .cal-nav{display:flex;align-items:center;gap:10px;}
+  .cal-nav button{
+    background:var(--surface);border:1px solid var(--border);color:var(--text-muted);
+    width:30px;height:30px;border-radius:8px;
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;font-size:16px;line-height:1;
+  }
+  .cal-nav button:hover{color:var(--accent);border-color:var(--accent-soft);}
+
+  .cal-dow-row{
+    display:grid;grid-template-columns:repeat(7,1fr);gap:6px;
+    margin-bottom:6px;
+  }
+  .cal-dow{text-align:center;font-size:11px;color:var(--text-dim);font-family:var(--font-mono);}
+
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:18px;}
+  .cal-cell{
+    aspect-ratio:1/1;
+    border-radius:10px;
+    border:1px solid var(--border);
+    background:var(--surface);
+    padding:6px;
+    display:flex;flex-direction:column;justify-content:space-between;
+    cursor:pointer;
+    transition:border-color .15s ease;
+  }
+  .cal-cell:hover{border-color:var(--accent-soft);}
+  .cal-cell.empty{visibility:hidden;cursor:default;}
+  .cal-cell.win{background:var(--success-soft);border-color:rgba(62,207,142,0.3);}
+  .cal-cell.loss{background:var(--danger-soft);border-color:rgba(242,84,91,0.3);}
+  .cal-cell.selected{outline:2px solid var(--accent);outline-offset:-1px;}
+  .cal-cell .cd-num{font-size:10.5px;color:var(--text-dim);font-family:var(--font-mono);}
+  .cal-cell.win .cd-num, .cal-cell.loss .cd-num{color:var(--text-muted);}
+  .cal-cell .cd-r{font-family:var(--font-mono);font-size:11.5px;font-weight:700;}
+  .cal-cell.win .cd-r{color:var(--success);}
+  .cal-cell.loss .cd-r{color:var(--danger);}
+  .cal-cell.flat .cd-r{color:var(--text-dim);}
+
+  .day-detail{
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:14px;padding:16px;
+  }
+  .day-detail h3{
+    margin:0 0 12px;font-family:var(--font-display);font-size:14px;font-weight:600;
+  }
+  .day-detail .dd-empty{color:var(--text-dim);font-size:13px;margin:0;}
+
+  @media (max-width:420px){
+    .cal-cell .cd-r{font-size:10px;}
+  }
+
   header.page-head{
     display:flex;
     align-items:center;
@@ -74,6 +171,10 @@
     font-size:11.5px;
     color:var(--text-dim);
     font-family:var(--font-mono);
+  }
+  .brand-text p.live-clock{
+    margin-top:2px;
+    color:var(--text-muted);
   }
 
   #refreshBtn{
@@ -196,7 +297,7 @@
   /* ===== 统计条 ===== */
   .stats-grid{
     display:grid;
-    grid-template-columns:repeat(4,1fr);
+    grid-template-columns:repeat(auto-fit, minmax(100px, 1fr));
     gap:10px;
     margin-bottom:16px;
   }
@@ -298,47 +399,103 @@
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="app-shell">
 
-  <header class="page-head">
-    <div class="brand">
-      <div class="brand-mark">
-        <svg viewBox="0 0 32 52" xmlns="http://www.w3.org/2000/svg">
-          <polygon points="16,0 16,19 2,26" fill="#8B9EFF"/>
-          <polygon points="16,0 16,19 30,26" fill="#5C6FE0"/>
-          <polygon points="16,22.5 16,34 2,29" fill="#B7C1FF"/>
-          <polygon points="16,22.5 16,34 30,29" fill="#8B9EFF"/>
-          <polygon points="16,37 16,52 2,32" fill="#5C6FE0"/>
-          <polygon points="16,37 16,52 30,32" fill="#3C4E8A"/>
-        </svg>
+  <nav class="sidebar">
+    <div class="side-logo">
+      <svg viewBox="0 0 32 52" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="16,0 16,19 2,26" fill="#8B9EFF"/>
+        <polygon points="16,0 16,19 30,26" fill="#5C6FE0"/>
+        <polygon points="16,22.5 16,34 2,29" fill="#B7C1FF"/>
+        <polygon points="16,22.5 16,34 30,29" fill="#8B9EFF"/>
+        <polygon points="16,37 16,52 2,32" fill="#5C6FE0"/>
+        <polygon points="16,37 16,52 30,32" fill="#3C4E8A"/>
+      </svg>
+    </div>
+    <button class="nav-item active" data-page="dashboard" onclick="switchPage('dashboard')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path>
+        <polyline points="9 22 9 12 15 12 15 22"></polyline>
+      </svg>
+      <span>首页</span>
+    </button>
+    <button class="nav-item" data-page="calendar" onclick="switchPage('calendar')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+        <line x1="16" y1="2" x2="16" y2="6"></line>
+        <line x1="8" y1="2" x2="8" y2="6"></line>
+        <line x1="3" y1="10" x2="21" y2="10"></line>
+      </svg>
+      <span>日历</span>
+    </button>
+  </nav>
+
+  <div class="main-content">
+
+    <div class="wrap" id="page-dashboard">
+      <header class="page-head">
+        <div class="brand">
+          <div class="brand-mark">
+            <svg viewBox="0 0 32 52" xmlns="http://www.w3.org/2000/svg">
+              <polygon points="16,0 16,19 2,26" fill="#8B9EFF"/>
+              <polygon points="16,0 16,19 30,26" fill="#5C6FE0"/>
+              <polygon points="16,22.5 16,34 2,29" fill="#B7C1FF"/>
+              <polygon points="16,22.5 16,34 30,29" fill="#8B9EFF"/>
+              <polygon points="16,37 16,52 2,32" fill="#5C6FE0"/>
+              <polygon points="16,37 16,52 30,32" fill="#3C4E8A"/>
+            </svg>
+          </div>
+          <div class="brand-text">
+            <h1>ETH Signal Monitor</h1>
+            <p id="lastUpdated">载入中...</p>
+            <p id="liveClock" class="live-clock">--</p>
+          </div>
+        </div>
+        <button id="refreshBtn" title="重新整理" onclick="loadData(true)">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"></path>
+          </svg>
+        </button>
+      </header>
+
+      <div id="content">
+        <div class="load-state">正在读取最新数据...</div>
       </div>
-      <div class="brand-text">
-        <h1>ETH Signal Monitor</h1>
-        <p id="lastUpdated">载入中...</p>
+
+      <footer>
+        结构破位 + EMA趋势 + RSI + 动能K线策略 &middot; 数据每5分钟自动更新<br>
+        <a href="https://github.com/happytrader1007-hub/ETH-Signal-Bot" target="_blank">查看仓库</a>
+      </footer>
+    </div>
+
+    <div class="wrap" id="page-calendar" style="display:none;">
+      <div class="cal-head">
+        <div class="cal-title" id="calTitle">--</div>
+        <div class="cal-nav">
+          <button onclick="changeMonth(-1)" title="上个月">&#8249;</button>
+          <button onclick="changeMonth(1)" title="下个月">&#8250;</button>
+        </div>
+      </div>
+      <div class="stats-grid" id="calSummary"></div>
+      <div class="cal-dow-row">
+        <div class="cal-dow">一</div><div class="cal-dow">二</div><div class="cal-dow">三</div>
+        <div class="cal-dow">四</div><div class="cal-dow">五</div><div class="cal-dow">六</div><div class="cal-dow">日</div>
+      </div>
+      <div class="cal-grid" id="calGrid"></div>
+      <div class="day-detail" id="dayDetail">
+        <p class="dd-empty">点击日期查看当天交易明细(按 MY 时区 UTC+8 的收盘日期归类)</p>
       </div>
     </div>
-    <button id="refreshBtn" title="重新整理" onclick="loadData(true)">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="23 4 23 10 17 10"></polyline>
-        <polyline points="1 20 1 14 7 14"></polyline>
-        <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"></path>
-      </svg>
-    </button>
-  </header>
 
-  <div id="content">
-    <div class="load-state">正在读取最新数据...</div>
   </div>
-
-  <footer>
-    结构破位 + EMA趋势 + RSI + 动能K线策略 &middot; 数据每5分钟自动更新<br>
-    <a href="https://github.com/happytrader1007-hub/ETH-Signal-Bot" target="_blank">查看仓库</a>
-  </footer>
-
 </div>
 
 <script>
-const DATA_URL = 'https://raw.githubusercontent.com/happytrader1007-hub/ETH-Signal-Bot/main/trades_data.json?t=' + Date.now();
+function getDataUrl(){
+  return 'https://raw.githubusercontent.com/happytrader1007-hub/ETH-Signal-Bot/main/trades_data.json?t=' + Date.now();
+}
 const REFRESH_MS = 60000;
 
 function fmtPrice(v){
@@ -370,6 +527,16 @@ function toMY(iso){
   const my = new Date(d.getTime() + 8 * 3600 * 1000);
   const pad = n => String(n).padStart(2,'0');
   return `${my.getUTCFullYear()}-${pad(my.getUTCMonth()+1)}-${pad(my.getUTCDate())} ${pad(my.getUTCHours())}:${pad(my.getUTCMinutes())}`;
+}
+
+function updateClock(){
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const utcStr = `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}:${pad(now.getUTCSeconds())}`;
+  const my = new Date(now.getTime() + 8 * 3600 * 1000);
+  const myStr = `${pad(my.getUTCHours())}:${pad(my.getUTCMinutes())}:${pad(my.getUTCSeconds())}`;
+  const el = document.getElementById('liveClock');
+  if (el) el.textContent = `UTC ${utcStr}  ·  UTC+8 ${myStr}`;
 }
 
 function renderHero(data){
@@ -421,14 +588,28 @@ function renderHero(data){
     </div>`;
 }
 
-function renderStats(stats){
+function calcMaxConsecutiveLosses(trades){
+  const closed = trades
+    .filter(t => t.status !== 'open' && t.r !== null && t.r !== undefined)
+    .sort((a,b) => new Date(a.entry_time) - new Date(b.entry_time));
+  let max = 0, cur = 0;
+  closed.forEach(t => {
+    if (t.r < 0){ cur++; if (cur > max) max = cur; }
+    else { cur = 0; }
+  });
+  return max;
+}
+
+function renderStats(stats, trades){
   const winRateDisplay = stats.win_rate === null ? '--' : fmtPct(stats.win_rate);
+  const maxLossStreak = calcMaxConsecutiveLosses(trades || []);
   return `
     <div class="stats-grid">
       <div class="stat-box"><div class="num">${stats.total_trades}</div><div class="lbl">总交易数</div></div>
       <div class="stat-box"><div class="num win">${winRateDisplay}</div><div class="lbl">胜率</div></div>
       <div class="stat-box"><div class="num">${stats.avg_r === null ? '--' : fmtR(stats.avg_r)}</div><div class="lbl">平均R</div></div>
       <div class="stat-box"><div class="num">${stats.open_trades}</div><div class="lbl">进行中</div></div>
+      <div class="stat-box"><div class="num" style="color:var(--danger);">${maxLossStreak}</div><div class="lbl">最高连亏</div></div>
     </div>`;
 }
 
@@ -465,20 +646,159 @@ function renderTrades(trades){
   return `<div class="section-title">最近交易 <span class="count">共 ${trades.length} 笔</span></div>${rows}`;
 }
 
+/* ===== 目录切换 ===== */
+let allData = null;
+const nowMY = new Date(Date.now() + 8 * 3600 * 1000);
+let calYear = nowMY.getUTCFullYear();
+let calMonth = nowMY.getUTCMonth();
+let selectedDate = null;
+
+function switchPage(page){
+  document.getElementById('page-dashboard').style.display = page === 'dashboard' ? '' : 'none';
+  document.getElementById('page-calendar').style.display = page === 'calendar' ? '' : 'none';
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.page === page));
+  if (page === 'calendar') renderCalendarPage();
+}
+
+/* ===== 日历页 ===== */
+function myDateStr(iso){
+  const d = new Date(iso);
+  const my = new Date(d.getTime() + 8 * 3600 * 1000);
+  const pad = n => String(n).padStart(2,'0');
+  return `${my.getUTCFullYear()}-${pad(my.getUTCMonth()+1)}-${pad(my.getUTCDate())}`;
+}
+
+function buildDayMap(trades){
+  const map = {};
+  trades.forEach(t => {
+    if (t.status === 'open' || t.r === null || t.r === undefined) return;
+    const iso = t.exit_time || t.entry_time;
+    if (!iso) return;
+    const key = myDateStr(iso);
+    if (!map[key]) map[key] = {sumR:0, count:0, wins:0, trades:[]};
+    map[key].sumR += Number(t.r);
+    map[key].count += 1;
+    if (Number(t.r) >= 0) map[key].wins += 1;
+    map[key].trades.push(t);
+  });
+  return map;
+}
+
+function changeMonth(delta){
+  calMonth += delta;
+  if (calMonth < 0){ calMonth = 11; calYear--; }
+  if (calMonth > 11){ calMonth = 0; calYear++; }
+  selectedDate = null;
+  renderCalendarPage();
+}
+
+function selectDay(dateStr){
+  selectedDate = (selectedDate === dateStr) ? null : dateStr;
+  renderCalendarPage();
+}
+
+function renderCalendarPage(){
+  const grid = document.getElementById('calGrid');
+  if (!allData){
+    grid.innerHTML = '';
+    document.getElementById('calTitle').textContent = '载入中...';
+    return;
+  }
+  const dayMap = buildDayMap(allData.trades || []);
+  const monthNames = ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+  document.getElementById('calTitle').textContent = `${calYear}年 ${monthNames[calMonth]}`;
+
+  const firstDow = (new Date(calYear, calMonth, 1).getDay() + 6) % 7; // 0=周一
+  const totalDays = new Date(calYear, calMonth + 1, 0).getDate();
+
+  let cellsHtml = '';
+  for (let i = 0; i < firstDow; i++) cellsHtml += `<div class="cal-cell empty"></div>`;
+
+  let monthSumR = 0, monthTrades = 0, monthWins = 0, activeDays = 0;
+  for (let day = 1; day <= totalDays; day++){
+    const pad = n => String(n).padStart(2,'0');
+    const dateStr = `${calYear}-${pad(calMonth+1)}-${pad(day)}`;
+    const info = dayMap[dateStr];
+    let cls = 'cal-cell';
+    let rText = '';
+    if (info){
+      activeDays++;
+      monthSumR += info.sumR; monthTrades += info.count; monthWins += info.wins;
+      if (info.sumR > 0.001) cls += ' win';
+      else if (info.sumR < -0.001) cls += ' loss';
+      else cls += ' flat';
+      rText = fmtR(info.sumR);
+    }
+    if (dateStr === selectedDate) cls += ' selected';
+    cellsHtml += `<div class="${cls}" onclick="selectDay('${dateStr}')"><span class="cd-num">${day}</span>${info ? `<span class="cd-r">${rText}</span>` : ''}</div>`;
+  }
+  grid.innerHTML = cellsHtml;
+
+  const winRateText = monthTrades > 0 ? (monthWins / monthTrades * 100).toFixed(1) + '%' : '--';
+  const avgPerDayText = activeDays > 0 ? fmtR(monthSumR / activeDays) : '--';
+  const sumClass = monthSumR > 0 ? 'win' : '';
+  const sumStyle = monthSumR < 0 ? 'color:var(--danger);' : '';
+  document.getElementById('calSummary').innerHTML = `
+    <div class="stat-box"><div class="num ${sumClass}" style="${sumStyle}">${monthTrades > 0 ? fmtR(monthSumR) : '--'}</div><div class="lbl">本月总R</div></div>
+    <div class="stat-box"><div class="num">${monthTrades}</div><div class="lbl">交易笔数</div></div>
+    <div class="stat-box"><div class="num win">${winRateText}</div><div class="lbl">胜率</div></div>
+    <div class="stat-box"><div class="num">${avgPerDayText}</div><div class="lbl">日均R</div></div>`;
+
+  renderDayDetail(dayMap);
+}
+
+function renderDayDetail(dayMap){
+  const el = document.getElementById('dayDetail');
+  if (!selectedDate){
+    el.innerHTML = `<p class="dd-empty">点击日期查看当天交易明细(按 MY 时区 UTC+8 的收盘日期归类)</p>`;
+    return;
+  }
+  const info = dayMap[selectedDate];
+  if (!info){
+    el.innerHTML = `<h3>${selectedDate}</h3><p class="dd-empty">当天没有已平仓的交易</p>`;
+    return;
+  }
+  const rows = info.trades
+    .sort((a,b) => new Date(a.entry_time) - new Date(b.entry_time))
+    .map(t => {
+      const rClass = Number(t.r) >= 0 ? 'pos' : 'neg';
+      const icon = t.direction === 'long' ? '&#8599;' : '&#8600;';
+      return `
+        <div class="trade-row">
+          <div class="trade-dir ${t.direction}">${icon}</div>
+          <div class="trade-mid">
+            <div class="t-time">${toMY(t.entry_time)}</div>
+            <div class="t-price">${fmtPrice(t.entry_price)} &rarr; ${t.exit_price ? fmtPrice(t.exit_price) : '--'}</div>
+          </div>
+          <div class="trade-end">
+            <span class="trade-badge ${t.status}">${statusLabel(t.status)}</span>
+            <div class="trade-r ${rClass}">${fmtR(t.r)}</div>
+          </div>
+        </div>`;
+    }).join('');
+  el.innerHTML = `<h3>${selectedDate} &middot; 净 ${fmtR(info.sumR)} &middot; ${info.count} 笔</h3>${rows}`;
+}
+
 async function loadData(manual){
   const btn = document.getElementById('refreshBtn');
   if (manual) btn.classList.add('spinning');
   try{
-    const resp = await fetch(DATA_URL, {cache:'no-store'});
+    const resp = await fetch(getDataUrl(), {cache:'no-store'});
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const data = await resp.json();
 
     if (!data.trades) data.trades = [];
     if (!data.stats) data.stats = {total_trades:0, closed_trades:0, open_trades:0, wins:0, losses:0, win_rate:null, avg_r:null, total_r:0};
 
+    allData = data;
+
     document.getElementById('content').innerHTML =
-      renderHero(data) + renderStats(data.stats) + renderTrades(data.trades);
+      renderHero(data) + renderStats(data.stats, data.trades) + renderTrades(data.trades);
     document.getElementById('lastUpdated').textContent = timeAgo(data.last_updated);
+
+    if (document.getElementById('page-calendar').style.display !== 'none'){
+      renderCalendarPage();
+    }
   }catch(err){
     document.getElementById('content').innerHTML =
       `<div class="error-state">读取失败：${err.message}<br>请确认仓库是 Public，且 trades_data.json 已经产生</div>`;
@@ -489,6 +809,8 @@ async function loadData(manual){
 
 loadData(false);
 setInterval(() => loadData(false), REFRESH_MS);
+updateClock();
+setInterval(updateClock, 1000);
 </script>
 </body>
 </html>
