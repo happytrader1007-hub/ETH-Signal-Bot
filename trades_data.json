@@ -1,0 +1,15 @@
+{
+  "trades": [],
+  "stats": {
+    "total_trades": 0,
+    "closed_trades": 0,
+    "open_trades": 0,
+    "wins": 0,
+    "losses": 0,
+    "win_rate": null,
+    "avg_r": null,
+    "total_r": 0
+  },
+  "current_price": 1925.75,
+  "last_updated": "2026-07-30T19:45:48.822818+00:00"
+}
