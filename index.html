@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ETH Signal Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0E14;
+    --surface:#131822;
+    --surface-2:#1A2030;
+    --border:#232B3D;
+    --accent:#8B9EFF;
+    --accent-soft:#4A5578;
+    --success:#3ECF8E;
+    --success-soft:rgba(62,207,142,0.12);
+    --danger:#F2545B;
+    --danger-soft:rgba(242,84,91,0.12);
+    --neutral:#F2B84B;
+    --neutral-soft:rgba(242,184,75,0.12);
+    --text:#E8EBF2;
+    --text-muted:#8891A5;
+    --text-dim:#5A6377;
+    --font-display:'Space Grotesk',sans-serif;
+    --font-body:'IBM Plex Sans',sans-serif;
+    --font-mono:'JetBrains Mono',monospace;
+  }
+
+  *{box-sizing:border-box;}
+  html{-webkit-tap-highlight-color:transparent;}
+
+  body{
+    margin:0;
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(139,158,255,0.10), transparent),
+      radial-gradient(ellipse 700px 500px at 100% 0%, rgba(62,207,142,0.06), transparent),
+      var(--bg);
+    color:var(--text);
+    font-family:var(--font-body);
+    min-height:100vh;
+    padding:20px 16px 60px;
+  }
+
+  .wrap{max-width:720px;margin:0 auto;}
+
+  header.page-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:22px;
+  }
+
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand-mark{
+    width:30px;height:30px;
+    border-radius:8px;
+    background:linear-gradient(145deg, var(--accent), #5C6FE0);
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--font-display);
+    font-weight:700;
+    font-size:15px;
+    color:#0B0E14;
+    flex-shrink:0;
+  }
+  .brand-text h1{
+    font-family:var(--font-display);
+    font-size:17px;
+    font-weight:600;
+    margin:0;
+    letter-spacing:0.2px;
+  }
+  .brand-text p{
+    margin:1px 0 0;
+    font-size:11.5px;
+    color:var(--text-dim);
+    font-family:var(--font-mono);
+  }
+
+  #refreshBtn{
+    background:var(--surface);
+    border:1px solid var(--border);
+    color:var(--text-muted);
+    width:38px;height:38px;
+    border-radius:10px;
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;
+    transition:border-color .15s ease, color .15s ease, transform .4s ease;
+  }
+  #refreshBtn:hover{border-color:var(--accent-soft);color:var(--accent);}
+  #refreshBtn.spinning svg{animation:spin .7s linear;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* ===== 状态卡片 (hero) ===== */
+  .status-card{
+    border-radius:18px;
+    border:1px solid var(--border);
+    background:var(--surface);
+    padding:22px 20px;
+    margin-bottom:16px;
+    position:relative;
+    overflow:hidden;
+  }
+  .status-card.is-long{border-color:rgba(62,207,142,0.35);}
+  .status-card.is-short{border-color:rgba(242,84,91,0.35);}
+
+  .status-eyebrow{
+    display:flex;align-items:center;gap:8px;
+    font-family:var(--font-mono);
+    font-size:11.5px;
+    letter-spacing:0.06em;
+    color:var(--text-dim);
+    text-transform:uppercase;
+    margin-bottom:14px;
+  }
+  .pulse-dot{
+    width:8px;height:8px;border-radius:50%;
+    background:var(--text-dim);
+    flex-shrink:0;
+  }
+  .pulse-dot.live{background:var(--success);box-shadow:0 0 0 0 rgba(62,207,142,0.55);animation:pulseRing 1.8s infinite;}
+  .pulse-dot.live.short-side{background:var(--danger);box-shadow:0 0 0 0 rgba(242,84,91,0.55);animation:pulseRingRed 1.8s infinite;}
+  @keyframes pulseRing{
+    0%{box-shadow:0 0 0 0 rgba(62,207,142,0.45);}
+    70%{box-shadow:0 0 0 9px rgba(62,207,142,0);}
+    100%{box-shadow:0 0 0 0 rgba(62,207,142,0);}
+  }
+  @keyframes pulseRingRed{
+    0%{box-shadow:0 0 0 0 rgba(242,84,91,0.45);}
+    70%{box-shadow:0 0 0 9px rgba(242,84,91,0);}
+    100%{box-shadow:0 0 0 0 rgba(242,84,91,0);}
+  }
+
+  .status-headline{
+    font-family:var(--font-display);
+    font-size:24px;
+    font-weight:700;
+    margin:0 0 4px;
+    display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+  }
+  .dir-badge{
+    font-family:var(--font-mono);
+    font-size:12.5px;
+    padding:3px 9px;
+    border-radius:999px;
+    font-weight:600;
+  }
+  .dir-badge.long{background:var(--success-soft);color:var(--success);}
+  .dir-badge.short{background:var(--danger-soft);color:var(--danger);}
+
+  .status-sub{color:var(--text-muted);font-size:13.5px;margin:0 0 18px;}
+
+  .price-grid{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:10px;
+  }
+  .price-cell{
+    background:var(--surface-2);
+    border-radius:12px;
+    padding:12px 10px;
+  }
+  .price-cell .lbl{
+    font-size:10.5px;color:var(--text-dim);
+    font-family:var(--font-mono);
+    text-transform:uppercase;letter-spacing:0.05em;
+    margin-bottom:5px;
+  }
+  .price-cell .val{
+    font-family:var(--font-mono);
+    font-size:15px;font-weight:600;
+    color:var(--text);
+  }
+  .price-cell.entry .val{color:var(--accent);}
+  .price-cell.stop .val{color:var(--danger);}
+  .price-cell.target .val{color:var(--success);}
+
+  .pnl-row{
+    display:flex;align-items:center;justify-content:space-between;
+    margin-top:14px;
+    padding-top:14px;
+    border-top:1px dashed var(--border);
+  }
+  .pnl-row .lbl{font-size:12.5px;color:var(--text-muted);}
+  .pnl-row .val{font-family:var(--font-mono);font-size:17px;font-weight:700;}
+  .pnl-row .val.pos{color:var(--success);}
+  .pnl-row .val.neg{color:var(--danger);}
+
+  .idle-state{text-align:center;padding:10px 4px 4px;}
+  .idle-state .big-icon{font-size:30px;margin-bottom:8px;opacity:.5;}
+  .idle-state h2{
+    font-family:var(--font-display);
+    font-size:18px;margin:0 0 6px;font-weight:600;color:var(--text-muted);
+  }
+  .idle-state p{margin:0;font-size:13px;color:var(--text-dim);}
+
+  /* ===== 统计条 ===== */
+  .stats-grid{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:10px;
+    margin-bottom:16px;
+  }
+  .stat-box{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:14px 10px;
+    text-align:center;
+  }
+  .stat-box .num{
+    font-family:var(--font-mono);
+    font-size:19px;font-weight:700;
+    color:var(--text);
+    line-height:1.1;
+  }
+  .stat-box .num.win{color:var(--success);}
+  .stat-box .lbl{
+    font-size:10.5px;color:var(--text-dim);
+    margin-top:5px;
+    letter-spacing:0.02em;
+  }
+
+  /* ===== 交易列表 ===== */
+  .section-title{
+    font-family:var(--font-display);
+    font-size:14px;font-weight:600;
+    color:var(--text-muted);
+    margin:22px 0 10px 2px;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .section-title span.count{
+    font-family:var(--font-mono);
+    font-size:11.5px;color:var(--text-dim);
+    font-weight:400;
+  }
+
+  .trade-row{
+    display:flex;align-items:center;gap:12px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:13px;
+    padding:12px 14px;
+    margin-bottom:8px;
+  }
+  .trade-dir{
+    width:34px;height:34px;border-radius:9px;
+    display:flex;align-items:center;justify-content:center;
+    font-size:15px;flex-shrink:0;
+  }
+  .trade-dir.long{background:var(--success-soft);color:var(--success);}
+  .trade-dir.short{background:var(--danger-soft);color:var(--danger);}
+
+  .trade-mid{flex:1;min-width:0;}
+  .trade-mid .t-time{font-size:12.5px;color:var(--text-muted);}
+  .trade-mid .t-price{
+    font-family:var(--font-mono);font-size:13px;color:var(--text-dim);margin-top:1px;
+  }
+
+  .trade-end{text-align:right;flex-shrink:0;}
+  .trade-badge{
+    font-family:var(--font-mono);
+    font-size:11px;font-weight:600;
+    padding:3px 8px;border-radius:999px;
+    display:inline-block;margin-bottom:4px;
+  }
+  .trade-badge.open{background:var(--neutral-soft);color:var(--neutral);}
+  .trade-badge.target{background:var(--success-soft);color:var(--success);}
+  .trade-badge.stop{background:var(--danger-soft);color:var(--danger);}
+  .trade-badge.timeout{background:rgba(136,145,165,0.15);color:var(--text-muted);}
+  .trade-r{font-family:var(--font-mono);font-size:13px;font-weight:600;}
+  .trade-r.pos{color:var(--success);}
+  .trade-r.neg{color:var(--danger);}
+  .trade-r.na{color:var(--text-dim);}
+
+  footer{
+    text-align:center;margin-top:26px;
+    font-size:11px;color:var(--text-dim);
+    font-family:var(--font-mono);
+  }
+  footer a{color:var(--accent-soft);text-decoration:none;}
+
+  .load-state, .error-state{
+    text-align:center;padding:60px 20px;color:var(--text-muted);font-size:13.5px;
+  }
+  .error-state{color:var(--danger);}
+
+  @media (max-width:420px){
+    .price-grid{grid-template-columns:1fr 1fr;}
+    .price-cell.entry{grid-column:1 / -1;}
+    .stats-grid{grid-template-columns:repeat(2,1fr);}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="page-head">
+    <div class="brand">
+      <div class="brand-mark">Ξ</div>
+      <div class="brand-text">
+        <h1>ETH Signal Monitor</h1>
+        <p id="lastUpdated">载入中...</p>
+      </div>
+    </div>
+    <button id="refreshBtn" title="重新整理" onclick="loadData(true)">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 4 23 10 17 10"></polyline>
+        <polyline points="1 20 1 14 7 14"></polyline>
+        <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"></path>
+      </svg>
+    </button>
+  </header>
+
+  <div id="content">
+    <div class="load-state">正在读取最新数据...</div>
+  </div>
+
+  <footer>
+    结构破位 + EMA趋势 + RSI + 动能K线策略 &middot; 数据每5分钟自动更新<br>
+    <a href="https://github.com/happytrader1007-hub/ETH-Signal-Bot" target="_blank">查看仓库</a>
+  </footer>
+
+</div>
+
+<script>
+const DATA_URL = 'https://raw.githubusercontent.com/happytrader1007-hub/ETH-Signal-Bot/main/trades_data.json?t=' + Date.now();
+const REFRESH_MS = 60000;
+
+function fmtPrice(v){
+  if (v === null || v === undefined) return '--';
+  return Number(v).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function fmtR(v){
+  if (v === null || v === undefined) return null;
+  const s = v >= 0 ? '+' : '';
+  return s + Number(v).toFixed(2) + 'R';
+}
+function fmtPct(v){
+  if (v === null || v === undefined) return '--';
+  return (v * 100).toFixed(1) + '%';
+}
+function timeAgo(iso){
+  if (!iso) return '';
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return '刚刚更新';
+  if (mins < 60) return mins + ' 分钟前更新';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + ' 小时前更新';
+  return Math.floor(hrs / 24) + ' 天前更新';
+}
+function toMY(iso){
+  if (!iso) return '--';
+  const d = new Date(iso);
+  const my = new Date(d.getTime() + 8 * 3600 * 1000);
+  const pad = n => String(n).padStart(2,'0');
+  return `${my.getUTCFullYear()}-${pad(my.getUTCMonth()+1)}-${pad(my.getUTCDate())} ${pad(my.getUTCHours())}:${pad(my.getUTCMinutes())}`;
+}
+
+function renderHero(data){
+  const openTrade = data.trades.find(t => t.status === 'open');
+  const isLong = openTrade && openTrade.direction === 'long';
+  const isShort = openTrade && openTrade.direction === 'short';
+
+  if (!openTrade){
+    return `
+      <div class="status-card">
+        <div class="status-eyebrow"><span class="pulse-dot"></span>目前状态</div>
+        <div class="idle-state">
+          <div class="big-icon">&#9711;</div>
+          <h2>没有进行中的信号</h2>
+          <p>策略正在监控市场，出现信号会立即更新在这里</p>
+        </div>
+      </div>`;
+  }
+
+  const price = data.current_price;
+  let pnlPct = null;
+  if (price){
+    pnlPct = openTrade.direction === 'long'
+      ? (price - openTrade.entry_price) / openTrade.entry_price * 100
+      : (openTrade.entry_price - price) / openTrade.entry_price * 100;
+  }
+  const pnlClass = pnlPct >= 0 ? 'pos' : 'neg';
+  const pnlSign = pnlPct >= 0 ? '+' : '';
+
+  return `
+    <div class="status-card ${isLong ? 'is-long' : 'is-short'}">
+      <div class="status-eyebrow">
+        <span class="pulse-dot live ${isShort ? 'short-side' : ''}"></span>持仓进行中
+      </div>
+      <div class="status-headline">
+        ${isLong ? '做多' : '做空'}
+        <span class="dir-badge ${openTrade.direction}">${openTrade.direction.toUpperCase()}</span>
+      </div>
+      <p class="status-sub">进场时间(MY)：${toMY(openTrade.entry_time)}</p>
+      <div class="price-grid">
+        <div class="price-cell entry"><div class="lbl">进场价</div><div class="val">${fmtPrice(openTrade.entry_price)}</div></div>
+        <div class="price-cell stop"><div class="lbl">止损</div><div class="val">${fmtPrice(openTrade.stop)}</div></div>
+        <div class="price-cell target"><div class="lbl">止盈</div><div class="val">${fmtPrice(openTrade.target)}</div></div>
+      </div>
+      <div class="pnl-row">
+        <span class="lbl">现价 ${fmtPrice(price)} · 浮动盈亏</span>
+        <span class="val ${pnlClass}">${pnlSign}${pnlPct ? pnlPct.toFixed(2) : '--'}%</span>
+      </div>
+    </div>`;
+}
+
+function renderStats(stats){
+  const winRateDisplay = stats.win_rate === null ? '--' : fmtPct(stats.win_rate);
+  return `
+    <div class="stats-grid">
+      <div class="stat-box"><div class="num">${stats.total_trades}</div><div class="lbl">总交易数</div></div>
+      <div class="stat-box"><div class="num win">${winRateDisplay}</div><div class="lbl">胜率</div></div>
+      <div class="stat-box"><div class="num">${stats.avg_r === null ? '--' : fmtR(stats.avg_r)}</div><div class="lbl">平均R</div></div>
+      <div class="stat-box"><div class="num">${stats.open_trades}</div><div class="lbl">进行中</div></div>
+    </div>`;
+}
+
+function statusLabel(status){
+  return {open:'进行中', target:'止盈', stop:'止损', timeout:'超时平仓'}[status] || status;
+}
+
+function renderTrades(trades){
+  const sorted = [...trades].sort((a,b) => new Date(b.entry_time) - new Date(a.entry_time)).slice(0, 20);
+  if (sorted.length === 0){
+    return `<div class="section-title">最近交易</div><p style="color:var(--text-dim);font-size:13px;">还没有任何交易记录</p>`;
+  }
+  const rows = sorted.map(t => {
+    const rClass = t.r === null || t.r === undefined ? 'na' : (t.r >= 0 ? 'pos' : 'neg');
+    const rText = t.r === null || t.r === undefined ? '--' : fmtR(t.r);
+    const icon = t.direction === 'long' ? '&#8599;' : '&#8600;';
+    return `
+      <div class="trade-row">
+        <div class="trade-dir ${t.direction}">${icon}</div>
+        <div class="trade-mid">
+          <div class="t-time">${toMY(t.entry_time)}</div>
+          <div class="t-price">${fmtPrice(t.entry_price)} &rarr; ${t.exit_price ? fmtPrice(t.exit_price) : '--'}</div>
+        </div>
+        <div class="trade-end">
+          <span class="trade-badge ${t.status}">${statusLabel(t.status)}</span>
+          <div class="trade-r ${rClass}">${rText}</div>
+        </div>
+      </div>`;
+  }).join('');
+  return `<div class="section-title">最近交易 <span class="count">共 ${trades.length} 笔</span></div>${rows}`;
+}
+
+async function loadData(manual){
+  const btn = document.getElementById('refreshBtn');
+  if (manual) btn.classList.add('spinning');
+  try{
+    const resp = await fetch(DATA_URL, {cache:'no-store'});
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+
+    if (!data.trades) data.trades = [];
+    if (!data.stats) data.stats = {total_trades:0, closed_trades:0, open_trades:0, wins:0, losses:0, win_rate:null, avg_r:null, total_r:0};
+
+    document.getElementById('content').innerHTML =
+      renderHero(data) + renderStats(data.stats) + renderTrades(data.trades);
+    document.getElementById('lastUpdated').textContent = timeAgo(data.last_updated);
+  }catch(err){
+    document.getElementById('content').innerHTML =
+      `<div class="error-state">读取失败：${err.message}<br>请确认仓库是 Public，且 trades_data.json 已经产生</div>`;
+    document.getElementById('lastUpdated').textContent = '读取失败';
+  }
+  if (manual) setTimeout(() => btn.classList.remove('spinning'), 700);
+}
+
+loadData(false);
+setInterval(() => loadData(false), REFRESH_MS);
+</script>
+</body>
+</html>
