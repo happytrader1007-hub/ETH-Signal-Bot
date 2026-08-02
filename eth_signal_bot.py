@@ -166,6 +166,17 @@ def detect_structure_breaks(df, left=5, right=5):
     return events
 
 
+def shift_break_events(break_events, bar_minutes):
+    """把破位事件的时间，从这根K棒的开盘时间，平移到收盘时间（也就是「真正知道破位发生」
+    的那一刻），避免用还没走完的K棒资料去找回踩确认信号。1小时线传60。"""
+    shifted = []
+    for ev in break_events:
+        new_ev = dict(ev)
+        new_ev['time'] = ev['time'] + pd.Timedelta(minutes=bar_minutes)
+        shifted.append(new_ev)
+    return shifted
+
+
 def compute_indicators(df):
     df = df.copy()
     df['ema21'] = df['close'].ewm(span=21, adjust=False).mean()
@@ -370,7 +381,8 @@ def main():
     update_open_trades(trades, df_5m)
 
     # 2) 找新信号
-    break_events = detect_structure_breaks(df_1h, left=PIVOT_LEFT_RIGHT, right=PIVOT_LEFT_RIGHT)
+    break_events_raw = detect_structure_breaks(df_1h, left=PIVOT_LEFT_RIGHT, right=PIVOT_LEFT_RIGHT)
+    break_events = shift_break_events(break_events_raw, 60)  # 修正：把破位时间平移到1H真正收盘的那一刻
     signals = generate_signals(df_5m, break_events, RETEST_TOLERANCE, MOMENTUM_FACTOR,
                                 MAX_WAIT_BARS, EMA_WARMUP_BARS)
 
