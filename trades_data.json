@@ -1,6 +1,6 @@
 {
-  "last_updated": "2026-08-11T14:44:57.772609+00:00",
-  "current_price": 1876.49,
+  "last_updated": "2026-08-11T18:05:31.058364+00:00",
+  "current_price": 1864.47,
   "trades": [
     {
       "entry_time": "2022-01-02T15:10:00Z",
@@ -13377,12 +13377,23 @@
       "exit_time": "2026-08-10T15:20:00+00:00",
       "exit_price": 1874.3328960000001,
       "r": 1.905
+    },
+    {
+      "entry_time": "2026-08-11T17:35:00+00:00",
+      "direction": "short",
+      "entry_price": 1864.38,
+      "stop": 1869.6044879999997,
+      "target": 1853.7210240000004,
+      "status": "open",
+      "exit_time": null,
+      "exit_price": null,
+      "r": null
     }
   ],
   "stats": {
-    "total_trades": 1216,
+    "total_trades": 1217,
     "closed_trades": 1216,
-    "open_trades": 0,
+    "open_trades": 1,
     "wins": 859,
     "losses": 357,
     "win_rate": 0.7064,
